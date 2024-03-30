@@ -1,41 +1,28 @@
 #include <stdio.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
-#define MAX_BUFFER_SIZE 1024
-
-// Estructura para el header fijo de un mensaje MQTT
-typedef struct {
-    unsigned char control_packet_type;
-    unsigned char remaining_length;
-} MQTTFixedHeader;
-
-// Función para analizar el encabezado fijo de un mensaje MQTT
-void parseFixedHeader(unsigned char* buffer, MQTTFixedHeader* fixedHeader) {
-    fixedHeader->control_packet_type = buffer[0] >> 4;  // Los primeros 4 bits representan el tipo de paquete de control
-    fixedHeader->remaining_length = buffer[1];  // El segundo byte representa la longitud restante
-}
+#define SERVER_PORT 1883
 
 int main() {
     int server_socket, client_socket;
     struct sockaddr_in server_address, client_address;
-    char buffer[MAX_BUFFER_SIZE];
+    char buffer[1024] = {0};
 
-    // Creacion de socket
+    // Crear socket
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket < 0) {
         perror("Error al crear el socket");
         exit(EXIT_FAILURE);
     }
 
-    // Configuración dirección del servidor
+    // Configurar dirección del servidor
     memset(&server_address, 0, sizeof(server_address));
     server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = INADDR_ANY; 
-    server_address.sin_port = htons(1883); // Puerto MQTT predeterminado
+    server_address.sin_addr.s_addr = INADDR_ANY;
+    server_address.sin_port = htons(SERVER_PORT);
 
     // Enlazar socket al puerto
     if (bind(server_socket, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
@@ -62,22 +49,14 @@ int main() {
     printf("Cliente conectado\n");
 
     // Recibir datos del cliente
-    int bytes_received = recv(client_socket, buffer, MAX_BUFFER_SIZE, 0);
+    int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
     if (bytes_received < 0) {
         perror("Error al recibir datos");
         exit(EXIT_FAILURE);
     }
 
-    // Analizar el header fijo
-    MQTTFixedHeader fixedHeader;
-    parseFixedHeader(buffer, &fixedHeader);
-
-    // Imprimir información del header fijo
-    printf("Tipo de paquete de control: %u\n", fixedHeader.control_packet_type);
-    printf("Longitud restante: %u\n", fixedHeader.remaining_length);
-
-    // Analizar el encabezado variable y la carga útil según sea necesario
-    // ...
+    // Imprimir el mensaje recibido
+    printf("Mensaje recibido del cliente: %s\n", buffer);
 
     // Cerrar sockets
     close(client_socket);
@@ -85,28 +64,3 @@ int main() {
 
     return 0;
 }
-
-
-int CONNECT_HEADER = 0b0010000;
-int CONNACK_CODE = 2;
-
-int PUBLISH_CODE = 3;
-int PUBACK_CODE = 4;
-
-int PUBREC_CODE = 5;
-int PUBREL_CODE = 6;
-int PUBCOMP_CODE = 7;
-
-int SUBSCRIBE_CODE = 8;
-int SUBACK_CODE = 9;
-
-int UNSUBSCRIBE_CODE = 10;
-int UNSUBACK_CODE = 11;
-
-int PINGREQ_CODE = 12;
-int PINGRESP_CODE = 13;
-
-int DISCONNECT = 14;
-int AUTH = 15;
-
-

@@ -7,7 +7,7 @@
 #define SERVER_ADDRESS "127.0.0.1"  // Dirección IP del servidor MQTT
 #define SERVER_PORT 1883            // Puerto del servidor MQTT
 
-int main() {
+int main(int argc, char* argv[]) {
     int client_socket;
     struct sockaddr_in server_address;
     char message[] = "Hola, servidor MQTT!";
