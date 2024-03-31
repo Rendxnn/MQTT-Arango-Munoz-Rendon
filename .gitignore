@@ -1,5 +1,4 @@
-client
-broker
+*.exe
 
-broker.exe
-server.exe
+*
+!*/
