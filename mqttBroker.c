@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <arpa/inet.h>
+#include <arpa/inet.h> //internamente incluye las funciones para Sockets de Berkeley
+#include <math.h>
 
 #define SERVER_PORT 1883
 
@@ -10,25 +11,133 @@
 struct fixed_header {
 	unsigned char type: 4;
 	unsigned char flags: 4;
-	unsigned char remaining_length;
+	int remaining_length;
 };
 
+int decode_variable_byte_integer(char message[], size_t size, int *current_position) {
 
-void read_instruction(char message[], size_t size, struct fixed_header *message_fixed_header) {
+    int multiplier = 1;
+    int value = 0;
+    char encoded_byte;
+    do {
+        encoded_byte = message[*current_position];
+        value += (encoded_byte & 127) * multiplier;
+        if (multiplier > 128 * 128 * 128) {
+            printf("malformed varaible byte integer");
+            return -1;
+        }
+        multiplier *= 128;
+        (*current_position)++;
+    }
+    while ((encoded_byte & 128) != 0);
+
+    return value;  
+}
+
+void encode_variable_byte_integer(int number, char result[]) {
+    char encoded_byte;
+    int position = 0;
+    do {
+        encoded_byte = number % 128;
+        number = number / 128;
+
+        if (number > 0) {
+            encoded_byte = encoded_byte | 128;
+        }
+        result[position] = encoded_byte;
+        position++;
+    } while (number > 0);
+}
+
+int read_instruction(char message[], size_t size, struct fixed_header *message_fixed_header) {
     unsigned char first_byte = message[0];
-    unsigned char second_byte = message[1];
 
     message_fixed_header -> type = (first_byte >> 4) & 0x0F;
     message_fixed_header -> flags = first_byte & 0x0F;
-    message_fixed_header -> remaining_length = second_byte;
+    
+    
+    int current_position = 1;
+    message_fixed_header -> remaining_length = decode_variable_byte_integer(message, size, &current_position);
+
+    return current_position;
 }
 
 
-void read_connect_message(char message[], size_t size) {
+char* build_connack(size_t* size, char clean_start_flag){
+    char connack_fixed_header = 0b00100000; 
+
+    // variable header
+
+    char connack_flags = 0;
+    if (clean_start_flag) {
+        connack_flags = 0b00000000;
+    }
+    else {
+        connack_flags = 0b00000001;
+    }
+
+    char connack_reason_code = 0x00; // success
+
+
+    char properties_length = 0b00000000; // working with packages with no properties for now
+
+    //PAYLOAD
+    // no payload xd
+
+
+    int remaining_length_int = sizeof(connack_flags) + sizeof(connack_reason_code) + sizeof(properties_length);
+
+    printf("remaining_length_int %d\n", remaining_length_int);  
+
+    int remaining_length_length; 
+    for (int i = 1; i < 5; i++) {
+        if (remaining_length_int < pow(2, 7 * i - 1)) {
+            remaining_length_length = i;
+            break;
+        }
+    }
+
+
+    char remaining_length[remaining_length_length];
+
+
+
+    encode_variable_byte_integer(remaining_length_int, remaining_length);
+
+    char* built_connack_message = (char*)malloc((remaining_length_int + 1) * sizeof(char));
+
+    printf("built_connack_message recien creado %ld\n", sizeof(built_connack_message));
+
+    built_connack_message[0] = connack_fixed_header;
+    for (int i = 0; i < remaining_length_length; i++) {
+        built_connack_message[i + 1] = remaining_length[i]; 
+    }
+
+    printf("built_connack_message despues de header %ld\n", sizeof(built_connack_message));
+
+    built_connack_message[remaining_length_length + 2] = connack_flags;
+    built_connack_message[remaining_length_length + 3] = connack_reason_code;
+    built_connack_message[remaining_length_length + 4] = properties_length;
+
+    *size = remaining_length_int + 2;
+
+
+    return built_connack_message;
+
+}
+
+
+char* read_connect_message(char message[], size_t size, int current_position, size_t* connack_size) {
     // READ VARIABLE HEADER
-    char protocol_name[] = {message[2], message[3], message[4], message[5], message[6], message[7]};
-    char protocol_level = message[8];
-    char connect_flags = message[9];
+    char protocol_name[] = {message[current_position], message[current_position + 1], message[current_position + 2], 
+    message[current_position + 3], message[current_position + 4], message[current_position + 5]};
+    current_position += 6;
+
+    char protocol_level = message[current_position];
+    current_position++;
+
+    char connect_flags = message[current_position];
+    current_position++;
 
 
     // READ CONNECTION FLAGS
@@ -42,15 +151,17 @@ void read_connect_message(char message[], size_t size) {
     char clean_start_flag = (connect_flags >> 1) & 1;
 
     // KEEP ALIVE
-    char keep_alive_duration = (message[10] << 8) | message[11];
+    char keep_alive_duration = (message[current_position] << 8) | message[current_position + 1];
+    current_position += 2;
 
     //READ PROPERTIES
-    char properties_length = message[12];
+    char properties_length = decode_variable_byte_integer(message, size, &current_position);
 
     //READ PAYLOAD
-    char client_id_length = (message[13] << 8) | message[14];
+    char client_id_length = (message[current_position] << 8) | message[current_position + 1];
+    current_position += 2;
+
     char client_id[client_id_length];
-    int current_position = 15;
 
     for (int i = 0; i < client_id_length; i++) {
         client_id[i] = message[current_position + i];
@@ -87,9 +198,6 @@ void read_connect_message(char message[], size_t size) {
     }
 
 
-
-
-
     printf("username_flag %d\n", username_flag);
     printf("password_flag %d\n", password_flag);
     printf("will_retain_flag %d\n", will_retain_flag);
@@ -97,10 +205,20 @@ void read_connect_message(char message[], size_t size) {
     printf("properties_length %d\n", properties_length);
     printf("client_id_length %d\n", client_id_length);
 
+    char* connack_message;
+    connack_message = build_connack(connack_size, clean_start_flag);
 
+    printf("connack_size: %ld\n", *connack_size);
+    printf("connack_message: \n");
+    for (int i = 0; i < *connack_size; i++) {
+        printf("%d\n", connack_message[i]);
+    }
 
+    return connack_message;
 
 }
+
+
 
 
 void print_message(char message[], size_t size) {
@@ -112,7 +230,7 @@ void print_message(char message[], size_t size) {
     printf("\n");
 }
 
-//temporal
+//tempora
 char connect_message[] = {
     //FIXED HEADER
     0b00010010, 0b00100101,   // Control Packet Type (CONNECT), Remaining Length
@@ -135,11 +253,9 @@ char connect_message[] = {
     0b00000000, 0b00001000, 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'   // Password length // Password (password)
 };
 
-int main() {
-
-    int server_socket, client_socket;
-    struct sockaddr_in server_address, client_address;
-    char buffer[1024] = {0};
+int initialize_socket() {
+    int server_socket;
+    struct sockaddr_in server_address;
 
     // Crear socket
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -168,6 +284,17 @@ int main() {
 
     printf("Esperando clientes...\n");
 
+    return server_socket;
+}
+
+int main() {
+    int server_socket, client_socket;
+    struct sockaddr_in client_address;
+    char buffer[1024] = {0};
+
+    // Inicializar el socket
+    server_socket = initialize_socket();
+
     // Aceptar conexiones entrantes
     socklen_t client_address_length = sizeof(client_address);
     client_socket = accept(server_socket, (struct sockaddr *)&client_address, &client_address_length);
@@ -178,7 +305,6 @@ int main() {
 
     printf("Cliente conectado\n");
 
-    // Recibir datos del cliente
     int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
     if (bytes_received < 0) {
         perror("Error al recibir datos");
@@ -191,15 +317,26 @@ int main() {
 
     struct fixed_header message_fixed_header;
 
-    read_instruction(buffer, sizeof(buffer), &message_fixed_header);
+    int current_message_position = read_instruction(buffer, sizeof(buffer), &message_fixed_header);
 
     printf("Type: %d\n", message_fixed_header.type);
     printf("Flags: %d\n", message_fixed_header.flags);
     printf("Remaining length: %d\n", message_fixed_header.remaining_length);
 
     if (message_fixed_header.type == 1) {
-        read_connect_message(buffer, sizeof(buffer));
+        size_t connack_size;
+        char* connack = read_connect_message(buffer, sizeof(buffer), current_message_position, &connack_size);
+        printf("connack from main: \n");
+        print_message(connack, sizeof(connack));
+        if (send(client_socket, connack, connack_size, 0) < 0) {
+            perror("Error al enviar CONNACK");
+            exit(EXIT_FAILURE);
+        }
     }
+
+
+    // Resto del código para manejar la comunicación con el cliente
+    // Recibir datos, procesarlos, etc.
 
     // Cerrar sockets
     close(client_socket);
@@ -207,4 +344,5 @@ int main() {
 
     return 0;
 }
+
 

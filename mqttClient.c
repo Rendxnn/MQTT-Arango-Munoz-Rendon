@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
     struct sockaddr_in server_address;
     char connect_message[] = {
     //FIXED HEADER
-    0b00010010, 0b00100101,   // Control Packet Type (CONNECT), Remaining Length
+    0b00010000, 0b00100101,   // Control Packet Type (CONNECT), Remaining Length
 
     // VARIABLE HEADER
     0b00000000, 0b00000100, 'M', 'Q', 'T', 'T',   // Protocol Name (MQTT)
@@ -74,8 +74,10 @@ int main(int argc, char* argv[]) {
 
 
     // Recibir respuesta del servidor
-    recv(client_socket, buffer, 1024, 0);
-    printf("Respuesta del servidor: %s\n", buffer);
+    recv(client_socket, buffer, sizeof(buffer), 0);
+    printf("Respuesta del servidor (CONNACK): ");
+    print_message(buffer, sizeof(buffer));
+
 
     // Cerrar socket
     close(client_socket);
