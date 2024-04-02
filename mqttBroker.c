@@ -131,9 +131,14 @@ char* read_connect_message(char message[], size_t size, int current_position, si
     // READ VARIABLE HEADER
     char protocol_name[] = {message[current_position], message[current_position + 1], message[current_position + 2], 
     message[current_position + 3], message[current_position + 4], message[current_position + 5]};
+    printf("%ld\n", sizeof(protocol_name));
+    for (int i = 0; i < sizeof(protocol_name); i++) {
+        printf("%c", protocol_name[i]);
+    }
     current_position += 6;
 
     char protocol_level = message[current_position];
+    printf("protocol_level %d\n", protocol_level);
     current_position++;
 
     char connect_flags = message[current_position];
@@ -161,6 +166,8 @@ char* read_connect_message(char message[], size_t size, int current_position, si
     char client_id_length = (message[current_position] << 8) | message[current_position + 1];
     current_position += 2;
 
+    printf("client_id_length %d\n", client_id_length);
+
     char client_id[client_id_length];
 
     for (int i = 0; i < client_id_length; i++) {
@@ -173,7 +180,7 @@ char* read_connect_message(char message[], size_t size, int current_position, si
         char username_length = (message[current_position] << 8) | message[current_position + 1];
         current_position += 2;
         char username[username_length];
-
+        printf("username: ");
         for (int i = 0; i < username_length; i++) {
             username[i] = message[current_position + i];
             printf("%c", username[i]);
@@ -185,9 +192,10 @@ char* read_connect_message(char message[], size_t size, int current_position, si
 
     if (password_flag) {
         char password_length = (message[current_position] << 8) | message[current_position + 1];
+        printf("password_length %c\n", password_length);
         current_position += 2;
         char password[password_length];
-
+        printf("password: ");
         for (int i = 0; i < password_length; i++) {
             password[i] = message[current_position + i];
             printf("%c", password[i]);
@@ -317,7 +325,7 @@ int main() {
 
     struct fixed_header message_fixed_header;
 
-    int current_message_position = read_instruction(buffer, sizeof(buffer), &message_fixed_header);
+    int current_message_position = read_instruction(buffer, sizeof(buffer), &message_fixed_header) + 1;
 
     printf("Type: %d\n", message_fixed_header.type);
     printf("Flags: %d\n", message_fixed_header.flags);
