@@ -15,6 +15,21 @@ struct fixed_header {
     int remaining_length;
 };
 
+char* encode_UTF8_string(char string[], size_t* string_size) {
+
+    char* encoded_string = (char*)malloc((*string_size + 2) * sizeof(char));
+
+    encoded_string[0] = (*string_size >> 8) & 0xFF;
+    encoded_string[1] = *string_size & 0xFF;
+
+
+    for (int i = 0; i < *string_size; i++) {
+        encoded_string[i + 2] = string[i];
+    }
+    *string_size += 2;
+
+    return encoded_string;
+}
 
 int decode_variable_byte_integer(char message[], size_t size, int *current_position) {
 
@@ -97,7 +112,6 @@ char* build_connect(size_t* connect_size) {
     char protocol_level = 0b00000101;
     char connect_flags = 0b11000010;
     char keep_alive[] = {0b00000000, 0b00111100};
-    char properties_length = 0b00000000;
 
     char client_id[65535];
     char username[65535];
@@ -158,7 +172,7 @@ char* build_connect(size_t* connect_size) {
         client_id_bytes[i + 2] = client_id[i];
     }
 
-    int remaining_length_int = sizeof(protocol_name) + sizeof(protocol_level) + sizeof(connect_flags) + sizeof(keep_alive) + sizeof(properties_length) + sizeof(username_bytes) + sizeof(password_bytes) + sizeof(client_id_bytes);
+    int remaining_length_int = sizeof(protocol_name) + sizeof(protocol_level) + sizeof(connect_flags) + sizeof(keep_alive)  + sizeof(username_bytes) + sizeof(password_bytes) + sizeof(client_id_bytes);
 
     int remaining_length_length = calculate_variable_byte_length(remaining_length_int);
 
@@ -195,9 +209,6 @@ char* build_connect(size_t* connect_size) {
     built_connect_message[current_position] = keep_alive[1];
     current_position++;
 
-    built_connect_message[current_position] = properties_length;
-    current_position++;
-
     for (int i = 0; i < sizeof(client_id_bytes); i++) {
         built_connect_message[current_position + i] = client_id_bytes[i];
     }
@@ -215,12 +226,118 @@ char* build_connect(size_t* connect_size) {
 
     *connect_size = remaining_length_int + remaining_length_length + 2;
 
-    printf("mensaje construido: \n");
-    print_message(built_connect_message, *connect_size);
-
     return built_connect_message;
 
 }
+
+
+int read_connack(struct fixed_header *response_fixed_header) {
+    return (response_fixed_header -> type == 2);
+}
+
+
+char* build_publish(size_t* publish_size) {
+    char packet_type_flags = 0b0011000;
+
+    int retain_flag;
+    printf("retain flag: \n");
+    scanf("%d", &retain_flag);
+
+    int QoS_flag;
+    printf("Qos flag: \n");
+    scanf("%d", &QoS_flag);
+    if (QoS_flag == 1) {
+        packet_type_flags = packet_type_flags | 0b00000010;
+    }
+    else if (QoS_flag == 2) {
+        packet_type_flags = packet_type_flags | 0b00000100;
+    }
+
+    if (retain_flag) {
+        packet_type_flags = packet_type_flags | 0b00000001;
+    }
+
+    //pending remaining length
+    //VARIABLE HEADER
+
+    char topic_name[65536];
+    printf("topic name: (65536 char max)\n");
+    scanf("%s", topic_name);
+
+    size_t topic_name_size = strlen(topic_name);
+
+    char* encoded_topic_name = encode_UTF8_string(topic_name, &topic_name_size);
+    
+    unsigned char packet_identifier[2];
+
+    if (QoS_flag != 0) {
+        int packet_identifier_int;
+        printf("packet identifier: (65535 max)\n");
+        scanf("%d", &packet_identifier_int);
+
+        packet_identifier[0] = (packet_identifier_int >> 8) & 0xFF;
+        packet_identifier[1] = packet_identifier_int & 0xFF;
+
+    }
+
+    //PAYLOAD
+
+    char message[65536];
+    printf("message: (65536 char max)\n");
+    scanf("%s", message);
+
+    size_t message_size = strlen(message);
+
+    char* encoded_message = encode_UTF8_string(message, &message_size);
+
+    int remaining_length_int;
+
+    if (QoS_flag) {
+        remaining_length_int = topic_name_size + sizeof(packet_identifier) + message_size;
+    }
+    else {
+        remaining_length_int = topic_name_size  + message_size;
+    }
+
+    int remaining_length_length = calculate_variable_byte_length(remaining_length_int);
+
+    char remaining_length[remaining_length_length];
+
+    encode_variable_byte_integer(remaining_length_int, remaining_length);
+
+    char* built_publish_message = (char*)malloc((remaining_length_int + 1) * sizeof(char));
+
+    built_publish_message[0] = packet_type_flags;
+
+    int current_position = 1;
+
+    for (int i = 0; i < remaining_length_length; i++) {
+        built_publish_message[current_position + i] = remaining_length[i];
+    }
+    current_position += remaining_length_length;
+
+    for (int i = 0; i < topic_name_size; i++) {
+        built_publish_message[current_position + i] = encoded_topic_name[i];
+    }
+    current_position += topic_name_size;
+
+    if (QoS_flag) {
+        for (int i = 0; i < 2; i++) {
+            built_publish_message[current_position + i] = packet_identifier[i];
+        }
+        current_position += 2;
+    }
+
+    for (int i = 0; i < message_size; i++) {
+        built_publish_message[current_position + i] = encoded_message[i];
+    }
+    current_position += message_size;
+
+    *publish_size = remaining_length_int + remaining_length_length + 1;
+
+    return built_publish_message;
+}
+
 
 int main(int argc, char* argv[]) {
     int client_socket;
@@ -234,12 +351,6 @@ int main(int argc, char* argv[]) {
     0b00000101,   // Protocol Level
     0b11000010,   // Connect Flags: Clean Session = 1
     0b00000000, 0b00111100,   // Keep Alive (60 segundos)
-
-    // VARIABLE HEADER PROPERTIES
-    0b00000000, // properties length
-    // 0b00010001, // Session Expiry Interval Identifier (17) 
-    // 0b00000000, 0b00000000,
-    // 0b00000000, 0b00001010, //Sesion expiry interval (10)
 
     //PAYLOAD
     0b00000000, 0b00001001, 'c', 'l', 'i', 'e', 'n', 't', '1', '2', '3',   // Client Identifier length // Client Identifier (client123)
@@ -282,16 +393,24 @@ int main(int argc, char* argv[]) {
 
     // Recibir respuesta del servidor
     recv(client_socket, buffer, sizeof(buffer), 0);
-    //printf("Respuesta del servidor (CONNACK): ");
-    //print_message(buffer, sizeof(buffer));
+    printf("Respuesta del servidor (CONNACK): ");
+    print_message(buffer, sizeof(buffer));
 
     struct fixed_header response_fixed_header;
 
     int current_position = read_instruction(buffer, sizeof(buffer), &response_fixed_header);
 
-    printf("type: %d\n", response_fixed_header.type);
-
-    printf("remaining_length: %d\n", response_fixed_header.remaining_length);
+    if (read_connack(&response_fixed_header)) {
+        printf("valid connack received");
+        size_t publish_size;
+        char* publish = build_publish(&publish_size);
+        printf("publis message: \n");
+        print_message(publish, publish_size);
+    }
+    else {
+        printf("Invalid connack or connack not received");
+        return 1;
+    }
 
 
     // Cerrar socket

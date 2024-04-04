@@ -79,13 +79,11 @@ char* build_connack(size_t* size, char clean_start_flag){
     char connack_reason_code = 0x00; // success
 
 
-    char properties_length = 0b00000000; // working with packages with no properties for now
-
     //PAYLOAD
     // no payload xd
 
 
-    int remaining_length_int = sizeof(connack_flags) + sizeof(connack_reason_code) + sizeof(properties_length);
+    int remaining_length_int = sizeof(connack_flags) + sizeof(connack_reason_code);
 
     printf("remaining_length_int %d\n", remaining_length_int);  
 
@@ -117,9 +115,8 @@ char* build_connack(size_t* size, char clean_start_flag){
 
     built_connack_message[remaining_length_length + 2] = connack_flags;
     built_connack_message[remaining_length_length + 3] = connack_reason_code;
-    built_connack_message[remaining_length_length + 4] = properties_length;
 
-    *size = remaining_length_int + 2;
+    *size = remaining_length_int + remaining_length_length + 1;
 
 
     return built_connack_message;
@@ -158,9 +155,6 @@ char* read_connect_message(char message[], size_t size, int current_position, si
     // KEEP ALIVE
     char keep_alive_duration = (message[current_position] << 8) | message[current_position + 1];
     current_position += 2;
-
-    //READ PROPERTIES
-    char properties_length = decode_variable_byte_integer(message, size, &current_position);
 
     //READ PAYLOAD
     char client_id_length = (message[current_position] << 8) | message[current_position + 1];
@@ -210,7 +204,6 @@ char* read_connect_message(char message[], size_t size, int current_position, si
     printf("password_flag %d\n", password_flag);
     printf("will_retain_flag %d\n", will_retain_flag);
     printf("keep_alive_duratiion %d\n", keep_alive_duration);
-    printf("properties_length %d\n", properties_length);
     printf("client_id_length %d\n", client_id_length);
 
     char* connack_message;
@@ -335,7 +328,7 @@ int main() {
         size_t connack_size;
         char* connack = read_connect_message(buffer, sizeof(buffer), current_message_position, &connack_size);
         printf("connack from main: \n");
-        print_message(connack, sizeof(connack));
+        print_message(connack, connack_size);
         if (send(client_socket, connack, connack_size, 0) < 0) {
             perror("Error al enviar CONNACK");
             exit(EXIT_FAILURE);
