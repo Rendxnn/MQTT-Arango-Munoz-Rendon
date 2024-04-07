@@ -8,6 +8,7 @@
 #include "connect.h"
 #include "publish.h"
 #include "encoder.h"
+#include "disconnect.h"
 #include "fixedHeader.h"
 
 
@@ -88,7 +89,7 @@ void *handle_client(void *args) {
     int publish_code = 3;
     int subscribe_code = 8;
     int unsubscribe_code = 10;
-    int disconnect = 14;
+    int disconnect_code = 14;
 
     struct ThreadArgs *thread_args = (struct ThreadArgs *)args;
     int client_socket = thread_args->client_socket;
@@ -143,6 +144,10 @@ void *handle_client(void *args) {
                 perror("Error al enviar CONNACK");
                 exit(EXIT_FAILURE);
             }
+        }
+        else if (message_fixed_header.type == disconnect_code) {
+            printf("cliente desconectado\n");
+            break;
         }
     }
 

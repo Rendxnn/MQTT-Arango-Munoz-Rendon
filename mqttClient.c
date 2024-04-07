@@ -4,12 +4,15 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <math.h>
+#include <sys/select.h> 
 #include "connect.h"
 #include "publish.h"
 #include "encoder.h"
+#include "disconnect.h"
 
 #define SERVER_ADDRESS "127.0.0.1"  // Dirección IP del servidor MQTT
 #define SERVER_PORT 1883            // Puerto del servidor MQTT
+#define MAX_BUFFER_SIZE 1024        // Tamaño máximo del búfer
 
 
 int read_instruction(char message[], size_t size, struct fixed_header *message_fixed_header) {
@@ -36,91 +39,101 @@ void print_message(char message[], size_t size) {
 }
 
 
+
 int main(int argc, char* argv[]) {
+    int publish_code = 3;
 
     int client_socket;
     struct sockaddr_in server_address;
-    
-    char buffer[1024] = {0};
+    char buffer[MAX_BUFFER_SIZE] = {0};
 
-    // Crear socket
+    // Crear socket y conectar al servidor
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("Error al crear el socket");
         exit(EXIT_FAILURE);
     }
 
-    // Configurar dirección del servidor
     server_address.sin_family = AF_INET;
     server_address.sin_port = htons(SERVER_PORT);
-    
-    // Convertir dirección IP de string a formato binario
     if(inet_pton(AF_INET, SERVER_ADDRESS, &server_address.sin_addr) <= 0) {
-        perror("Dirección invalida o no soportada");
+        perror("Dirección inválida o no soportada");
         exit(EXIT_FAILURE);
     }
-
-    // Conectar al servidor
     if (connect(client_socket, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
         perror("Error al conectar al servidor");
         exit(EXIT_FAILURE);
     }
 
+    // Construir y enviar mensaje CONNECT
     size_t connect_size;
-    char* connect = build_connect(&connect_size);
+    char* connect_message = build_connect(&connect_size);
+    send(client_socket, connect_message, connect_size, 0);
 
-    //print_message(connect, sizeof(connect));
-
-    send(client_socket, connect, connect_size, 0);
-
-
+    // Esperar a recibir CONNACK del servidor
     recv(client_socket, buffer, sizeof(buffer), 0);
-    //printf("Respuesta del servidor (CONNACK): ");
-    //print_message(buffer, sizeof(buffer));
 
-    struct fixed_header response_fixed_header;
+    fd_set fds;
+    int max_fd = client_socket + 1;
+    printf("BIENVENIDO\n");
+    while (1) {
+        printf("Escoja una opcion: \n1. PUBLISH \n2. SUBSCRIBE \n3. DISCONNECT\n");
+        // Limpiar el conjunto de descriptores de archivo y configurar los descriptores a vigilar
+        FD_ZERO(&fds);
+        FD_SET(client_socket, &fds);
+        FD_SET(STDIN_FILENO, &fds);
 
-    int current_position = read_instruction(buffer, sizeof(buffer), &response_fixed_header);
+        // Utilizar select() para esperar en los descriptores de archivo
+        if (select(max_fd, &fds, NULL, NULL, NULL) < 0) {
+            perror("Error en select");
+            exit(EXIT_FAILURE);
+        }
 
-    if (read_connack(&response_fixed_header)) {
-        printf("valid connack received \n");
 
-        printf("BIENVENIDO\n");
-        while (1) {
+        // Comprobar si hay datos disponibles en el socket del cliente
+        if (FD_ISSET(client_socket, &fds)) {
+            memset(buffer, 0, sizeof(buffer));
+            ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+            if (bytes_received < 0) {
+                perror("Error al recibir mensajes");
+                exit(EXIT_FAILURE);
+            } else if (bytes_received == 0) {
+                // El servidor cerró la conexión
+                printf("El servidor cerró la conexión\n");
+                break;
+            } else {
+                // Decodificar y manejar el mensaje recibido
+                struct fixed_header response_fixed_header;
+                int current_position = read_instruction(buffer, bytes_received, &response_fixed_header);
+                if (response_fixed_header.type == publish_code) {
+                    // Este mensaje es un mensaje de publicación, imprímelo o procesa según sea necesario
+                    printf("Mensaje publicado recibido: \n");
+                    print_message(buffer, sizeof(buffer));
+                }
+            }
+        }
+
+        // Comprobar si hay entrada disponible en stdin (entrada estándar del usuario)
+        if (FD_ISSET(STDIN_FILENO, &fds)) {
             int opcion;
-            printf("Escoja una opcion: \n1. PUBLISH \n2. SUBSCRIBE \n3. DISCONNECT\n");
             scanf("%d", &opcion);
-
             if (opcion == 1) {
+                // Lógica para enviar un mensaje de publicación al servidor MQTT
                 size_t publish_size;
                 char* publish = build_publish(&publish_size);
-                printf("publish message: \n");
-                print_message(publish, publish_size);
                 send(client_socket, publish, publish_size, 0);
+            } else if (opcion == 2) {
+                // Lógica para suscribirse a un tema
+                // (No implementado en este ejemplo)
+            } else if (opcion == 3) {
+                size_t disconnect_size;
+                char* disconnect = build_disconnect(&disconnect_size);
+                send(client_socket, disconnect, disconnect_size, 0);
+                print_message(disconnect, disconnect_size);
             }
-
-
-            
         }
-        
-    }
-    else {
-        printf("Invalid connack or connack not received");
-        return 1;
     }
 
-
-    memset(buffer, 0, sizeof(buffer));
-    if (recv(client_socket, buffer, sizeof(buffer), 0) < 0) {
-        perror("Error while receiving puback");
-        exit(EXIT_FAILURE);
-    }
-    printf("puback received: \n");
-    print_message(buffer, 4);
-
-
-
-
-    // Cerrar socket
+    // Cerrar el socket
     close(client_socket);
 
     return 0;
