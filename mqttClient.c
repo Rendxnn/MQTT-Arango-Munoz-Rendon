@@ -83,12 +83,25 @@ int main(int argc, char* argv[]) {
 
     if (read_connack(&response_fixed_header)) {
         printf("valid connack received \n");
-        size_t publish_size;
-        printf("publish_size: %ld\n", publish_size);
-        char* publish = build_publish(&publish_size);
-        printf("publish message: \n");
-        print_message(publish, publish_size);
-        send(client_socket, publish, publish_size, 0);
+
+        printf("BIENVENIDO\n");
+        while (1) {
+            int opcion;
+            printf("Escoja una opcion: \n1. PUBLISH \n2. SUBSCRIBE \n3. DISCONNECT\n");
+            scanf("%d", &opcion);
+
+            if (opcion == 1) {
+                size_t publish_size;
+                char* publish = build_publish(&publish_size);
+                printf("publish message: \n");
+                print_message(publish, publish_size);
+                send(client_socket, publish, publish_size, 0);
+            }
+
+
+            
+        }
+        
     }
     else {
         printf("Invalid connack or connack not received");

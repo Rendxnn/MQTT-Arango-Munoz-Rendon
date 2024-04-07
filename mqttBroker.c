@@ -123,27 +123,30 @@ int main() {
             exit(EXIT_FAILURE);
         }
     }
+    while (1) {
+        memset(buffer, 0, sizeof(buffer));
+        bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+        if (client_socket < 0) {
+            perror("Error al aceptar la conexión");
+            exit(EXIT_FAILURE);
+        }
+        current_message_position = 0;
+        current_message_position = read_instruction(buffer, bytes_received, &message_fixed_header);
+        printf("message type recieved %d\n", message_fixed_header.type);
 
-    memset(buffer, 0, sizeof(buffer));
-    bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
-    if (client_socket < 0) {
-        perror("Error al aceptar la conexión");
-        exit(EXIT_FAILURE);
+        if (message_fixed_header.type == publish_code) {
+            printf("publish recieved\n");
+            print_message(buffer, bytes_received);
+            char* puback = read_publish(buffer, sizeof(buffer), current_message_position, message_fixed_header.flags);
+            print_message(puback, 4);
+            if (send(client_socket, puback, 4, 0) < 0) {
+                perror("Error al enviar CONNACK");
+                exit(EXIT_FAILURE);
+            }
+        }
     }
-    current_message_position = 0;
-    current_message_position = read_instruction(buffer, bytes_received, &message_fixed_header);
-    printf("message[current_position] %d\n", buffer[current_message_position]);
 
-    if (message_fixed_header.type == publish_code) {
-                printf("publish recieved\n");
-                print_message(buffer, bytes_received);
-                char* puback = read_publish(buffer, sizeof(buffer), current_message_position, message_fixed_header.flags);
-                print_message(puback, 4);
-                if (send(client_socket, puback, 4, 0) < 0) {
-                    perror("Error al enviar CONNACK");
-                    exit(EXIT_FAILURE);
-                }
-    }
+    
 
     // Resto del código para manejar la comunicación con el cliente
     // Recibir datos, procesarlos, etc.
