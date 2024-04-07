@@ -8,7 +8,7 @@
 
 
 char* build_publish(size_t* publish_size) {
-    char packet_type_flags = 0b0011000;
+    char packet_type_flags = 0b00110000;
 
     int retain_flag;
     printf("retain flag: \n");
@@ -30,12 +30,17 @@ char* build_publish(size_t* publish_size) {
 
     //pending remaining length
     //VARIABLE HEADER
-
+    while(getchar() != '\n');
     char topic_name[65536];
     printf("topic name: (65536 char max)\n");
-    scanf("%s", topic_name);
+    fgets(topic_name, sizeof(topic_name), stdin);
+    if (topic_name[strlen(topic_name) - 1] == '\n') {
+        topic_name[strlen(topic_name) - 1] = '\0';
+    }
 
     size_t topic_name_size = strlen(topic_name);
+    printf("topic_name_size %ld \n", topic_name_size);
+
 
     char* encoded_topic_name = encode_UTF8_string(topic_name, &topic_name_size);
     
@@ -52,12 +57,16 @@ char* build_publish(size_t* publish_size) {
     }
 
     //PAYLOAD
-
+    while(getchar() != '\n');
     char message[65536];
     printf("message: (65536 char max)\n");
-    scanf("%s", message);
+    fgets(message, 65536, stdin);
+    if (message[strlen(message) - 1] == '\n') {
+        message[strlen(message) - 1] = '\0';
+    }
 
     size_t message_size = strlen(message);
+    printf("message_size %ld \n", message_size);
 
     char* encoded_message = encode_UTF8_string(message, &message_size);
 
@@ -102,9 +111,59 @@ char* build_publish(size_t* publish_size) {
     for (int i = 0; i < message_size; i++) {
         built_publish_message[current_position + i] = encoded_message[i];
     }
+
     current_position += message_size;
 
     *publish_size = remaining_length_int + remaining_length_length + 1;
 
     return built_publish_message;
 }
+
+
+char* build_puback(int packet_identifier) {
+    char puback_fixed_header = 0b01000000;
+    char puback_remaining_length = 0b00000010;
+
+    char packet_identifier_bytes[2];
+    packet_identifier_bytes[0] = (packet_identifier >> 8) & 0xFF;
+    packet_identifier_bytes[1] = packet_identifier & 0xFF;
+
+    char* built_puback = (char*)malloc((4) * sizeof(char));
+
+    built_puback[0] = puback_fixed_header;
+    built_puback[1] = puback_remaining_length;
+    built_puback[2] = packet_identifier_bytes[0];
+    built_puback[3] = packet_identifier_bytes[1];
+
+    return built_puback;
+
+}
+
+
+char* read_publish(char message[], size_t size, int current_position, unsigned char flags) {
+    unsigned char retain = flags & 0x01;
+    unsigned char QoS = (flags >> 1) & 0x03;
+    unsigned char DUP = (flags >> 3) & 0x01;
+
+
+    printf("Retain: %d\n", retain);
+    printf("QoS: %d\n", QoS);
+    printf("Duplicate: %d\n", DUP);
+
+    size_t topic_size;
+    char* topic = decode_UTF8_string(message, &current_position, &topic_size);
+
+    int packet_identifier = (message[current_position] << 8) | message[current_position + 1];
+    current_position += 2;
+    printf("packertidentifier %d\n", packet_identifier);
+
+    size_t payload_message_length;
+    char* payload_message = decode_UTF8_string(message, &current_position, &payload_message_length);
+
+
+    char* puback = build_puback(packet_identifier);
+    
+
+    return puback;
+}
+

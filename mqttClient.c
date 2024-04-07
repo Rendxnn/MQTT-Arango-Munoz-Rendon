@@ -37,23 +37,9 @@ void print_message(char message[], size_t size) {
 
 
 int main(int argc, char* argv[]) {
+
     int client_socket;
     struct sockaddr_in server_address;
-    char connect_message[] = {
-    //FIXED HEADER
-    0b00010000, 0b00100110,   // Control Packet Type (CONNECT), Remaining Length
-
-    // VARIABLE HEADER
-    0b00000000, 0b00000100, 'M', 'Q', 'T', 'T',   // Protocol Name (MQTT)
-    0b00000101,   // Protocol Level
-    0b11000010,   // Connect Flags: Clean Session = 1
-    0b00000000, 0b00111100,   // Keep Alive (60 segundos)
-
-    //PAYLOAD
-    0b00000000, 0b00001001, 'c', 'l', 'i', 'e', 'n', 't', '1', '2', '3',   // Client Identifier length // Client Identifier (client123)
-    0b00000000, 0b00000100, 'r', 'e', 'n', 'd',   // Username length // User Name (user)
-    0b00000000, 0b00001000, 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'   // Password length // Password (password)
-};
     
     char buffer[1024] = {0};
 
@@ -84,30 +70,41 @@ int main(int argc, char* argv[]) {
 
     //print_message(connect, sizeof(connect));
 
-    // Enviar mensaje al servidor
     send(client_socket, connect, connect_size, 0);
 
 
-    // Recibir respuesta del servidor
     recv(client_socket, buffer, sizeof(buffer), 0);
-    printf("Respuesta del servidor (CONNACK): ");
-    print_message(buffer, sizeof(buffer));
+    //printf("Respuesta del servidor (CONNACK): ");
+    //print_message(buffer, sizeof(buffer));
 
     struct fixed_header response_fixed_header;
 
     int current_position = read_instruction(buffer, sizeof(buffer), &response_fixed_header);
 
     if (read_connack(&response_fixed_header)) {
-        printf("valid connack received");
+        printf("valid connack received \n");
         size_t publish_size;
+        printf("publish_size: %ld\n", publish_size);
         char* publish = build_publish(&publish_size);
-        printf("publis message: \n");
+        printf("publish message: \n");
         print_message(publish, publish_size);
+        send(client_socket, publish, publish_size, 0);
     }
     else {
         printf("Invalid connack or connack not received");
         return 1;
     }
+
+
+    memset(buffer, 0, sizeof(buffer));
+    if (recv(client_socket, buffer, sizeof(buffer), 0) < 0) {
+        perror("Error while receiving puback");
+        exit(EXIT_FAILURE);
+    }
+    printf("puback received: \n");
+    print_message(buffer, 4);
+
+
 
 
     // Cerrar socket

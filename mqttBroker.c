@@ -31,33 +31,12 @@ void print_message(char message[], size_t size) {
     for (int i = 0; i < size; i++) {
         for (int j = 7; j >= 0; j--) {
             printf("%d", (message[i] >> j) & 1);
+            //printf("%c", message[i]);
         }
     }
     printf("\n");
 }
 
-//tempora
-char connect_message[] = {
-    //FIXED HEADER
-    0b00010010, 0b00100101,   // Control Packet Type (CONNECT), Remaining Length
-
-    // VARIABLE HEADER
-    0b00000000, 0b00000100, 'M', 'Q', 'T', 'T',   // Protocol Name (MQTT)
-    0b00000101,   // Protocol Level
-    0b11000010,   // Connect Flags: Clean Session = 1
-    0b00000000, 0b00111100,   // Keep Alive (60 segundos)
-
-    // VARIABLE HEADER PROPERTIES
-    0b00000000, // properties length
-    // 0b00010001, // Session Expiry Interval Identifier (17) 
-    // 0b00000000, 0b00000000,
-    // 0b00000000, 0b00001010, //Sesion expiry interval (10)
-
-    //PAYLOAD
-    0b00000000, 0b00001001, 'c', 'l', 'i', 'e', 'n', 't', '1', '2', '3',   // Client Identifier length // Client Identifier (client123)
-    0b00000000, 0b00000100, 'r', 'e', 'n', 'd',   // Username length // User Name (user)
-    0b00000000, 0b00001000, 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'   // Password length // Password (password)
-};
 
 int initialize_socket() {
     int server_socket;
@@ -94,6 +73,11 @@ int initialize_socket() {
 }
 
 int main() {
+    int connect_code = 1;
+    int publish_code = 3;
+    int subscribe_code = 8;
+    int unsubscribe_code = 10;
+    int disconnect = 14;
     int server_socket, client_socket;
     struct sockaddr_in client_address;
     char buffer[1024] = {0};
@@ -140,6 +124,26 @@ int main() {
         }
     }
 
+    memset(buffer, 0, sizeof(buffer));
+    bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+    if (client_socket < 0) {
+        perror("Error al aceptar la conexión");
+        exit(EXIT_FAILURE);
+    }
+    current_message_position = 0;
+    current_message_position = read_instruction(buffer, bytes_received, &message_fixed_header);
+    printf("message[current_position] %d\n", buffer[current_message_position]);
+
+    if (message_fixed_header.type == publish_code) {
+                printf("publish recieved\n");
+                print_message(buffer, bytes_received);
+                char* puback = read_publish(buffer, sizeof(buffer), current_message_position, message_fixed_header.flags);
+                print_message(puback, 4);
+                if (send(client_socket, puback, 4, 0) < 0) {
+                    perror("Error al enviar CONNACK");
+                    exit(EXIT_FAILURE);
+                }
+    }
 
     // Resto del código para manejar la comunicación con el cliente
     // Recibir datos, procesarlos, etc.
@@ -150,5 +154,4 @@ int main() {
 
     return 0;
 }
-
 

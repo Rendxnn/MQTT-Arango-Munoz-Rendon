@@ -21,6 +21,24 @@ char* encode_UTF8_string(char string[], size_t* string_size) {
     return encoded_string;
 }
 
+char* decode_UTF8_string(char message[], int* current_position, size_t* topic_size) {
+    int string_length = (message[*current_position] << 8) | message[*current_position + 1];
+    char* string = (char*)malloc((string_length + 1) * sizeof(char));
+
+    *current_position +=  2;
+
+    for (int i = 0; i < string_length; i++) {
+        string[i] = message[i + *current_position];
+        printf("%c", message[i + *current_position]);
+    }
+    printf("\n");
+
+    *topic_size = string_length;
+    *current_position += string_length;
+
+    return string;
+}
+
 int decode_variable_byte_integer(char message[], size_t size, int *current_position) {
 
     int multiplier = 1;
@@ -59,7 +77,7 @@ void encode_variable_byte_integer(int number, char result[]) {
 int calculate_variable_byte_length(int remaining_length_int) {
     int remaining_length_length; 
     for (int i = 1; i < 5; i++) {
-        if (remaining_length_int < pow(2, 7 * i - 1)) {
+        if (remaining_length_int <= pow(2, 7 * i - 1)) {
             remaining_length_length = i;
             break;
         }

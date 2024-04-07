@@ -10,6 +10,6 @@ gcc mqttBroker.c encoder.c connect.c publish.c -o broker -lm
 
 ### CLient:
 
-gcc mqttClient.c encoder.c connect.c publish.c -o broker -lm
+gcc mqttClient.c encoder.c connect.c publish.c -o client -lm
 
 ./client
