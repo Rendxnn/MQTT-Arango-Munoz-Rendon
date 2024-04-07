@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <arpa/inet.h> //internamente incluye las funciones para Sockets de Berkeley
+#include <pthread.h> // Agrega la biblioteca pthread.h para trabajar con hilos
 #include "connect.h"
 #include "publish.h"
 #include "encoder.h"
@@ -11,6 +12,15 @@
 
 
 #define SERVER_PORT 1883
+
+struct ThreadArgs {
+    int client_socket;
+};
+
+typedef struct {
+    char client_id[65535];
+    char topic_name[65535];
+} Subscription;
 
 
 int read_instruction(char message[], size_t size, struct fixed_header *message_fixed_header) {
@@ -72,28 +82,18 @@ int initialize_socket() {
     return server_socket;
 }
 
-int main() {
+void *handle_client(void *args) {
+
     int connect_code = 1;
     int publish_code = 3;
     int subscribe_code = 8;
     int unsubscribe_code = 10;
     int disconnect = 14;
-    int server_socket, client_socket;
-    struct sockaddr_in client_address;
+
+    struct ThreadArgs *thread_args = (struct ThreadArgs *)args;
+    int client_socket = thread_args->client_socket;
     char buffer[1024] = {0};
 
-    // Inicializar el socket
-    server_socket = initialize_socket();
-
-    // Aceptar conexiones entrantes
-    socklen_t client_address_length = sizeof(client_address);
-    client_socket = accept(server_socket, (struct sockaddr *)&client_address, &client_address_length);
-    if (client_socket < 0) {
-        perror("Error al aceptar la conexión");
-        exit(EXIT_FAILURE);
-    }
-
-    printf("Cliente conectado\n");
 
     int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
     if (bytes_received < 0) {
@@ -146,15 +146,49 @@ int main() {
         }
     }
 
-    
-
-    // Resto del código para manejar la comunicación con el cliente
-    // Recibir datos, procesarlos, etc.
-
-    // Cerrar sockets
     close(client_socket);
+    free(thread_args);
+    return NULL;
+
+}
+
+int main() {
+    int server_socket;
+    pthread_t threads[5];
+    int thread_count = 0;
+    server_socket = initialize_socket(); // Aquí inicializamos el socket
+
+    while (1) {
+        int client_socket;
+        struct sockaddr_in client_address;
+        socklen_t client_address_length = sizeof(client_address);
+
+        client_socket = accept(server_socket, (struct sockaddr *)&client_address, &client_address_length);
+        if (client_socket < 0) {
+            perror("Error al aceptar la conexión");
+            exit(EXIT_FAILURE);
+        }
+
+        printf("Cliente conectado\n");
+        struct ThreadArgs *args = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs));
+        args->client_socket = client_socket;
+        if (pthread_create(&threads[thread_count++], NULL, handle_client, (void *)args) < 0) {
+            perror("Error al crear el hilo");
+            exit(EXIT_FAILURE);
+        }
+
+        if (thread_count >= 5) {
+            // Esperar a que los hilos terminen para aceptar nuevas conexiones
+            for (int i = 0; i < thread_count; ++i) {
+                pthread_join(threads[i], NULL);
+            }
+            thread_count = 0;
+        }
+    }
+    
     close(server_socket);
 
     return 0;
 }
+
 
