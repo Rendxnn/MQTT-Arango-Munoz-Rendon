@@ -29,7 +29,7 @@ char* decode_UTF8_string(char message[], int* current_position, size_t* topic_si
 
     for (int i = 0; i < string_length; i++) {
         string[i] = message[i + *current_position];
-        printf("%c", message[i + *current_position]);
+        //printf("%c", message[i + *current_position]);
     }
     printf("\n");
 

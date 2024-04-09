@@ -9,6 +9,8 @@
 #include "publish.h"
 #include "encoder.h"
 #include "disconnect.h"
+#include "subscribe.h"
+
 
 #define SERVER_ADDRESS "127.0.0.1"  // Dirección IP del servidor MQTT
 #define SERVER_PORT 1883            // Puerto del servidor MQTT
@@ -122,13 +124,33 @@ int main(int argc, char* argv[]) {
                 char* publish = build_publish(&publish_size);
                 send(client_socket, publish, publish_size, 0);
             } else if (opcion == 2) {
-                // Lógica para suscribirse a un tema
-                // (No implementado en este ejemplo)
+                char subscribe_example[] = {
+                    0b10000010, //fixed header
+                    14, //remaining length
+                    0b00000000, 0b00000001, //packet identifier
+
+                    0b00000000, 0b00000011, 'a', '/', 'b',
+                    0b00000000,
+
+                    0b00000000, 0b00000011, 'c', '/', 'd',
+                    0b00000000 };
+                size_t subscribe_size;
+                char* subscribe = build_subscribe(&subscribe_size);
+                print_message(subscribe_example, 16);
+                send(client_socket, subscribe_example, 16, 0);
+
+                int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+
+                printf("suback received\n");
+                print_message(buffer, sizeof(buffer));
+
+
             } else if (opcion == 3) {
                 size_t disconnect_size;
                 char* disconnect = build_disconnect(&disconnect_size);
                 send(client_socket, disconnect, disconnect_size, 0);
                 print_message(disconnect, disconnect_size);
+                break;
             }
         }
     }

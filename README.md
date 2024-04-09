@@ -4,12 +4,12 @@
 
 ### Broker:
 
-gcc mqttBroker.c encoder.c connect.c publish.c -o broker -lm
+gcc mqttBroker.c encoder.c connect.c publish.c subscribe.c disconnect.c -o broker -lm
 
 ./broker
 
 ### CLient:
 
-gcc mqttClient.c encoder.c connect.c publish.c -o client -lm
+gcc mqttClient.c encoder.c connect.c publish.c subscribe.c disconnect.c -o client -lm
 
 ./client
