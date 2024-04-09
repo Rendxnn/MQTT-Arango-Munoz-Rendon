@@ -43,6 +43,7 @@ void print_message(char message[], size_t size) {
 
 
 int main(int argc, char* argv[]) {
+    int connack_code = 2;
     int publish_code = 3;
 
     int client_socket;
@@ -72,7 +73,20 @@ int main(int argc, char* argv[]) {
     send(client_socket, connect_message, connect_size, 0);
 
     // Esperar a recibir CONNACK del servidor
-    recv(client_socket, buffer, sizeof(buffer), 0);
+    int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+    struct fixed_header response_fixed_header;
+    if (bytes_received < 0) {
+        perror("Error al recibir mensajes");
+        exit(EXIT_FAILURE);
+    }
+
+    int current_position = read_instruction(buffer, bytes_received, &response_fixed_header);
+    if (response_fixed_header.type == connack_code) {
+        printf("connack recibido: ");
+        print_message(buffer, bytes_received);
+    }
+
+
 
     fd_set fds;
     int max_fd = client_socket + 1;
@@ -93,8 +107,10 @@ int main(int argc, char* argv[]) {
 
         // Comprobar si hay datos disponibles en el socket del cliente
         if (FD_ISSET(client_socket, &fds)) {
-            memset(buffer, 0, sizeof(buffer));
-            ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+            printf("algo se recibio");
+            //memset(buffer, 0, sizeof(buffer));
+            int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+            printf("bytes_received: %d\n", bytes_received);
             if (bytes_received < 0) {
                 perror("Error al recibir mensajes");
                 exit(EXIT_FAILURE);
@@ -104,12 +120,11 @@ int main(int argc, char* argv[]) {
                 break;
             } else {
                 // Decodificar y manejar el mensaje recibido
-                struct fixed_header response_fixed_header;
-                int current_position = read_instruction(buffer, bytes_received, &response_fixed_header);
+                current_position = read_instruction(buffer, bytes_received, &response_fixed_header);
                 if (response_fixed_header.type == publish_code) {
                     // Este mensaje es un mensaje de publicación, imprímelo o procesa según sea necesario
-                    printf("Mensaje publicado recibido: \n");
-                    print_message(buffer, sizeof(buffer));
+                    printf("Mensaje publish recibido: \n");
+                    print_message(buffer, bytes_received);
                 }
             }
         }
@@ -126,23 +141,21 @@ int main(int argc, char* argv[]) {
             } else if (opcion == 2) {
                 char subscribe_example[] = {
                     0b10000010, //fixed header
-                    14, //remaining length
+                    12, //remaining length
                     0b00000000, 0b00000001, //packet identifier
 
-                    0b00000000, 0b00000011, 'a', '/', 'b',
+                    0b00000000, 0b00000110, 'f', 'u', 't', 'b', 'o', 'l',
                     0b00000000,
 
-                    0b00000000, 0b00000011, 'c', '/', 'd',
                     0b00000000 };
                 size_t subscribe_size;
-                char* subscribe = build_subscribe(&subscribe_size);
-                print_message(subscribe_example, 16);
-                send(client_socket, subscribe_example, 16, 0);
+                //char* subscribe = build_subscribe(&subscribe_size);
+                send(client_socket, subscribe_example, 14, 0);
 
                 int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
 
-                printf("suback received\n");
-                print_message(buffer, sizeof(buffer));
+                printf("suback received: \n");
+                print_message(buffer, bytes_received);
 
 
             } else if (opcion == 3) {

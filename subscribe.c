@@ -113,12 +113,13 @@ char* read_subscribe(char message[], int current_position, int remaining_length,
     int original_position = current_position;
     int packet_identifier = (message[current_position] << 8 ) | message[current_position + 1];
     current_position += 2;
-    
+    printf("topic: \n");
     while (current_position < remaining_length + original_position) {
         subscriptions++;
         int topic_name_size = (message[current_position] << 8 ) | message[current_position + 1];
         current_position += 2;
         char current_topic[topic_name_size];
+
         for (int i = 0; i < topic_name_size; i++) {
             current_topic[i] = message[current_position];
             printf("%c", current_topic[i]);

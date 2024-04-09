@@ -40,16 +40,14 @@ void add_subscription(const char *topic, int client_socket) {
 
 
 void send_message_to_subscribers(const char *topic, const char *message, size_t message_size) {
-    printf("dentro de funcion\n");
     pthread_mutex_lock(&subscription_mutex);
-    printf("despues de funcion rara\n");
     for (int i = 0; i < subscription_count; ++i) {
-        printf("%s", subscriptions[i].topic);
         if (strcmp(subscriptions[i].topic, topic) == 0) {
-            printf("enviando a un cliente\n");
-            for (int i = 0; i < message_size; i++) {
-                printf("%c", message[i]);
-            }
+            printf("enviando a cliente de socket: ");
+            printf("%d\n", subscriptions[i].client_socket);
+            //for (int i = 0; i < message_size; i++) {
+                //printf("%c", message[i]);
+            //}
             send(subscriptions[i].client_socket, message, message_size, 0);
         }
     }
@@ -139,22 +137,18 @@ void *handle_client(void *args) {
     }
 
     // Imprimir el mensaje recibido
-    printf("Mensaje recibido del cliente: ");
+    printf("Mensaje recibido del cliente \n");
     //print_message(buffer, sizeof(buffer));
 
     struct fixed_header message_fixed_header;
 
     int current_message_position = read_instruction(buffer, sizeof(buffer), &message_fixed_header) + 1;
 
-    printf("Type: %d\n", message_fixed_header.type);
-    printf("Flags: %d\n", message_fixed_header.flags);
-    printf("Remaining length: %d\n", message_fixed_header.remaining_length);
-
     if (message_fixed_header.type == 1) {
+        printf("connect recibido: \n");
+        print_message(buffer, bytes_received);
         size_t connack_size;
         char* connack = read_connect(buffer, sizeof(buffer), current_message_position, &connack_size);
-        printf("connack from main: \n");
-        print_message(connack, connack_size);
         if (send(client_socket, connack, connack_size, 0) < 0) {
             perror("Error al enviar CONNACK");
             exit(EXIT_FAILURE);
@@ -163,7 +157,7 @@ void *handle_client(void *args) {
         char default_topic[1024];
         strcpy(default_topic, "global");
         add_subscription(default_topic, client_socket);
-        printf("Succesful default subscription creation \n");
+        printf("Agregada suscripcion por defecto a topic global \n");
     }
 
     while (1) {
@@ -175,10 +169,9 @@ void *handle_client(void *args) {
         }
         current_message_position = 0;
         current_message_position = read_instruction(buffer, bytes_received, &message_fixed_header);
-        printf("message type recieved %d\n", message_fixed_header.type);
 
         if (message_fixed_header.type == publish_code) {
-            printf("publish recieved\n");
+            printf("publish recibido\n");
             //print_message(buffer, bytes_received);
 
             size_t payload_message_length;
@@ -188,35 +181,31 @@ void *handle_client(void *args) {
             char topic[100];
 
             char* puback = read_publish(buffer, sizeof(buffer), current_message_position, message_fixed_header.flags, payload_message, &payload_message_length, topic, &topic_length);
-            printf("payload_message_length %ld\n", payload_message_length);
-            printf("payload_message from main \n");
+            printf("mensaje: \n");
             for (int i = 0; i < payload_message_length; i++) {
                 printf("%c", payload_message[i]);
             }
             printf("\n");
 
-            printf("topic from main \n");
+            printf("topic: \n");
             for (int i = 0; i < topic_length; i++) {
                 printf("%c", topic[i]);
             }
-            printf("holaquepasa");
+            printf("\n");
 
-            printf("enviar mensaje a suscriptiores");
+            printf("enviando mensaje a suscriptiores \n");
             send_message_to_subscribers(topic, payload_message, payload_message_length);
-            printf("message Succesfully sent");
+            printf("mensaje enviado a suscriptores");
 
         }
 
         else if (message_fixed_header.type == subscribe_code) {
             char client_id[] = {'c', 'l', 'i', 'e', 'n', 't'};
-            printf("subscribe recieved\n");
+            printf("subscribe recibido\n");
             print_message(buffer, bytes_received);
-            printf("ya");
             size_t suback_size;
 
             char* suback = read_subscribe(buffer, current_message_position, message_fixed_header.remaining_length, client_id, &suback_size);
-            //printf("SUBACK: \n");
-            //print_message(suback, suback_size);
 
             if (send(client_socket, suback, 4, 0) < 0) {
                 perror("Error al enviar SUBACK");

@@ -29,8 +29,6 @@ char* build_connack(size_t* size, char clean_start_flag){
 
     int remaining_length_int = sizeof(connack_flags) + sizeof(connack_reason_code);
 
-    printf("remaining_length_int %d\n", remaining_length_int);  
-
     int remaining_length_length; 
     for (int i = 1; i < 5; i++) {
         if (remaining_length_int < pow(2, 7 * i - 1)) {
@@ -91,10 +89,6 @@ char* build_connect(size_t* connect_size) {
     size_t password_length = strlen(password);
     size_t client_id_length = strlen(client_id);
 
-
-    printf("username_length %ld\n", username_length);
-    printf("password_length %ld\n", password_length);
-
     unsigned char username_length_bytes[2];
     unsigned char password_length_bytes[2];
     unsigned char client_id_length_bytes[2];
@@ -138,8 +132,6 @@ char* build_connect(size_t* connect_size) {
     int remaining_length_length = calculate_variable_byte_length(remaining_length_int);
 
     char remaining_length[remaining_length_length];
-
-    printf("remaining_length connect: %d\n", remaining_length_int);
 
     encode_variable_byte_integer(remaining_length_int, remaining_length);
 
@@ -258,7 +250,6 @@ char* read_connect(char message[], size_t size, int current_position, size_t* co
 
     if (password_flag) {
         char password_length = (message[current_position] << 8) | message[current_position + 1];
-        printf("password_length %c\n", password_length);
         current_position += 2;
         char password[password_length];
         printf("password: ");
@@ -273,12 +264,6 @@ char* read_connect(char message[], size_t size, int current_position, size_t* co
 
     char* connack_message;
     connack_message = build_connack(connack_size, clean_start_flag);
-
-    printf("connack_size: %ld\n", *connack_size);
-    printf("connack_message: \n");
-    for (int i = 0; i < *connack_size; i++) {
-        printf("%d\n", connack_message[i]);
-    }
 
     return connack_message;
 

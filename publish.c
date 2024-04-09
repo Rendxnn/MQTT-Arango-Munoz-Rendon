@@ -39,7 +39,7 @@ char* build_publish(size_t* publish_size) {
     }
 
     size_t topic_name_size = strlen(topic_name);
-    printf("topic_name_size %ld \n", topic_name_size);
+    printf("longitud del topic: %ld \n", topic_name_size);
 
 
     char* encoded_topic_name = encode_UTF8_string(topic_name, &topic_name_size);
@@ -66,7 +66,7 @@ char* build_publish(size_t* publish_size) {
     }
 
     size_t message_size = strlen(message);
-    printf("message_size %ld \n", message_size);
+    printf("longitud del mensaje: %ld \n", message_size);
 
     char* encoded_message = encode_UTF8_string(message, &message_size);
 
@@ -156,12 +156,10 @@ char* read_publish(char message[], size_t size, int current_position, unsigned c
 
     int packet_identifier = (message[current_position] << 8) | message[current_position + 1];
     current_position += 2;
-    printf("packertidentifier %d\n", packet_identifier);
 
     char* payload_message_decoded = decode_UTF8_string(message, &current_position, payload_message_length);
-    printf("desde read_publish\n");
     for (int i = 0; i < *payload_message_length; i++){
-        printf("%c", payload_message_decoded[i]);
+        //printf("%c", payload_message_decoded[i]);
         payload_message[i] = payload_message_decoded[i];
     }
     printf("\n");
