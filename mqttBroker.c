@@ -11,6 +11,7 @@
 #include "disconnect.h"
 #include "fixedHeader.h"
 #include "subscribe.h"
+#include <time.h>
 
 
 #define SERVER_PORT 1883
@@ -39,15 +40,32 @@ void add_subscription(const char *topic, int client_socket) {
 }
 
 
+void append_to_log(int client_socket, int message_type) {
+    FILE *file = fopen("log.log", "a");
+    if (file == NULL) {
+        printf("Error al abrir el archivo");
+        return;
+    }
+
+    time_t current_time = time(NULL);
+
+    struct tm *infoTime = localtime(&current_time);
+
+    char buffer_date[100];
+    strftime(buffer_date, 100, "%Y-%m-%d %H:%M:%S", infoTime);
+
+    fprintf(file, "%s %d\n", buffer_date, client_socket); // Escribir el IP del cliente
+    fclose(file);
+}
+
+
+
 void send_message_to_subscribers(const char *topic, const char *message, size_t message_size) {
     pthread_mutex_lock(&subscription_mutex);
     for (int i = 0; i < subscription_count; ++i) {
         if (strcmp(subscriptions[i].topic, topic) == 0) {
             printf("enviando a cliente de socket: ");
             printf("%d\n", subscriptions[i].client_socket);
-            //for (int i = 0; i < message_size; i++) {
-                //printf("%c", message[i]);
-            //}
             send(subscriptions[i].client_socket, message, message_size, 0);
         }
     }
@@ -73,7 +91,6 @@ void print_message(char message[], size_t size) {
     for (int i = 0; i < size; i++) {
         for (int j = 7; j >= 0; j--) {
             printf("%d", (message[i] >> j) & 1);
-            //printf("%c", message[i]);
         }
     }
     printf("\n");
@@ -90,8 +107,6 @@ int initialize_socket() {
         perror("Error al crear el socket");
         exit(EXIT_FAILURE);
     }
-
-    
 
     // Configurar dirección del servidor
     memset(&server_address, 0, sizeof(server_address));
@@ -170,6 +185,8 @@ void *handle_client(void *args) {
         current_message_position = 0;
         current_message_position = read_instruction(buffer, bytes_received, &message_fixed_header);
 
+        append_to_log(client_socket, message_fixed_header.type);
+
         if (message_fixed_header.type == publish_code) {
             printf("publish recibido\n");
             //print_message(buffer, bytes_received);
@@ -192,9 +209,9 @@ void *handle_client(void *args) {
                 printf("%c", topic[i]);
             }
             printf("\n");
-
+            send_message_to_subscribers(topic, buffer, sizeof(buffer));
+            send(client_socket, puback, 4, 0);
             printf("enviando mensaje a suscriptiores \n");
-            send_message_to_subscribers(topic, payload_message, payload_message_length);
             printf("mensaje enviado a suscriptores");
 
         }
@@ -219,6 +236,7 @@ void *handle_client(void *args) {
             printf("cliente desconectado\n");
             break;
         }
+
     }
 
     close(client_socket);
@@ -244,9 +262,16 @@ int main() {
             exit(EXIT_FAILURE);
         }
 
+        char client_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(client_address.sin_addr), client_ip, INET_ADDRSTRLEN);
+        printf("Cliente conectado desde la dirección IP: %s\n", client_ip);
+
+
         printf("Cliente conectado\n");
         struct ThreadArgs *args = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs));
         args->client_socket = client_socket;
+
+
         if (pthread_create(&threads[thread_count++], NULL, handle_client, (void *)args) < 0) {
             perror("Error al crear el hilo");
             exit(EXIT_FAILURE);
