@@ -54,7 +54,7 @@ void append_to_log(int client_socket, int message_type) {
     char buffer_date[100];
     strftime(buffer_date, 100, "%Y-%m-%d %H:%M:%S", infoTime);
 
-    fprintf(file, "%s %d\n", buffer_date, client_socket); // Escribir el IP del cliente
+    fprintf(file, "%s %d %d\n", buffer_date, client_socket, message_type); 
     fclose(file);
 }
 

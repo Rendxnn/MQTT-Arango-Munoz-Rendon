@@ -12,7 +12,7 @@
 #include "disconnect.h"
 #include "subscribe.h"
 
-#define SERVER_ADDRESS "127.0.0.1"  
+#define SERVER_ADDRESS "54.162.108.217"  
 #define SERVER_PORT 1883            
 #define MAX_BUFFER_SIZE 1024        
 
