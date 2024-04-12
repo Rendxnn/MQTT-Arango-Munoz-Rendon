@@ -93,7 +93,7 @@ El manejo de recepción y re-envío de mensajes se implementó usando un arreglo
 - Construcción de mensaje subscribe 
 
 
-- Generación automáticas 
+- Generación automática de clientId y packetIdentifier.
 
 
 
