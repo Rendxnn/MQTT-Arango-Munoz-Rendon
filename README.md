@@ -84,16 +84,19 @@ El manejo de recepción y re-envío de mensajes se implementó usando un arreglo
 - Despliegue en maquina AWS 
 
 
-### No Logrados 
-
-
 - Envío de mensajes a clientes subscritos a un tópico determinado. 
+
+
+
+### No Logrados 
 
 
 - Construcción de mensaje subscribe 
 
 
 - Generación automática de clientId y packetIdentifier.
+
+- Manejo de sub-temas.
 
 
 
